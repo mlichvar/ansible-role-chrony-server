@@ -1,0 +1,7 @@
+---
+- name: restart chronyd
+  service: "name=chronyd state=restarted"
+- name: restart collectd
+  service: "name=collectd state=restarted"
+- name: restart ntp-firewall
+  service: "name=ntp-firewall state=restarted"

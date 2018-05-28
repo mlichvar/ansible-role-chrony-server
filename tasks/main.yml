@@ -1,0 +1,69 @@
+---
+- name: Install chrony
+  package: name=chrony state=present
+
+- name: Install collectd with plugins
+  package: name={{ item }} state=present
+  with_items:
+    - collectd
+    - collectd-rrdtool
+    - collectd-iptables
+    - collectd-chrony
+  when: ntp_stats
+
+- name: Set hostname for statistics
+  set_fact: ntp_stats_hostname={{ ansible_hostname }}
+  when: ntp_stats_hostname == ""
+
+- name: Install chrony.conf file
+  template: src=chrony.conf.j2 dest=/etc/chrony.conf backup=yes mode=0644
+  notify: restart chronyd
+
+- name: Install chronyd sysconfig file
+  template: src=chronyd.sysconfig.j2 dest=/etc/sysconfig/chronyd backup=yes mode=0644
+  notify: restart chronyd
+
+- name: Install collectd.conf file
+  template: src=collectd.conf.j2 dest=/etc/collectd.conf backup=yes mode=0644
+  notify: restart collectd
+  when: ntp_stats
+
+- name: Update network sysconfig file
+  lineinfile:
+    dest: /etc/sysconfig/network
+    create: yes
+    mode: 0644
+    regexp: '^PEERNTP='
+    line: 'PEERNTP=no'
+    state: "{{ 'absent' if dhcp_ntp_servers else 'present' }}"
+  notify: restart chronyd
+
+- name: Install helper script
+  template: src=chrony-server-helper.j2 dest={{ helper_path }} mode=0755
+
+- name: Install ntp-firewall service
+  template: src=ntp-firewall.service.j2 dest=/etc/systemd/system/ntp-firewall.service mode=0644
+  notify: restart ntp-firewall
+
+- name: Uninstall ntp-stats cron job
+  file: path=/etc/cron.d/ntp-stats state=absent
+  when: not ntp_stats
+
+- name: Install ntp-stats cron job
+  template: src=ntp-stats.cron.j2 dest=/etc/cron.d/ntp-stats mode=0644
+  when: ntp_stats
+
+- name: Enable chronyd
+  service: name=chronyd state=started enabled=yes
+
+- name: Enable collectd
+  service: name=collectd state=started enabled=yes
+  when: ntp_stats
+
+- name: Disable ntp-firewall service
+  service: name=ntp-firewall state=started enabled=yes
+  when: not ntp_firewall
+
+- name: Enable ntp-firewall service
+  service: name=ntp-firewall state=stopped enabled=no
+  when: ntp_firewall

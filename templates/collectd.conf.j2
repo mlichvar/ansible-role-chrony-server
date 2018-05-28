@@ -1,0 +1,35 @@
+# {{ ansible_managed }}
+
+Hostname "{{ ntp_stats_hostname }}"
+FQDNLookup   false
+Interval     1
+ReadThreads  5
+
+LoadPlugin interface
+LoadPlugin iptables
+LoadPlugin rrdtool
+LoadPlugin chrony
+LoadPlugin syslog
+
+<Plugin rrdtool>
+	DataDir "/var/lib/collectd/rrd"
+	CacheFlush 3600
+	CacheTimeout 60
+	RRARows 1200
+	RRATimespan 86400
+	RRATimespan 604800
+	RRATimespan 2678400
+	RRATimespan 31622400
+</Plugin>
+
+<Plugin interface>
+        IgnoreSelected true
+        Interface "lo"
+</Plugin>
+
+<Plugin iptables>
+  Chain "filter" "INPUT" "ntp_ipv4_in"
+  Chain "filter" "OUTPUT" "ntp_ipv4_out"
+  Chain6 "filter" "INPUT" "ntp_ipv6_in"
+  Chain6 "filter" "OUTPUT" "ntp_ipv6_out"
+</Plugin>

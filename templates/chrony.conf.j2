@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+
+keyfile /etc/chrony.keys
+driftfile /var/lib/chrony/drift
+dumpdir /var/run/chrony
+logdir /var/log/chrony
+
+makestep 1 3
+rtcsync
+
+allow
+
+{{ chrony_configuration }}

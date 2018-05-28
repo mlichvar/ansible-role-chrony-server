@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description=Configure firewall for NTP server
+After=network-online.target iptables.service ip6tables.service firewalld.service
+Before=chronyd.service
+
+[Service]
+Type=oneshot
+ExecStart={{ helper_path }} ntp-firewall
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

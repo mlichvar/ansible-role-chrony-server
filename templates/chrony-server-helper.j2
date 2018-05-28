@@ -1,0 +1,258 @@
+#!/bin/bash
+
+# {{ ansible_managed }}
+
+# Copyright (C) 2018  Miroslav Lichvar <mlichvar@redhat.com>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+export TZ=UTC
+
+host="{{ ntp_stats_hostname }}"
+rrd_dir="/var/lib/collectd/rrd/$host"
+www_dir="{{ ntp_stats_www_dir }}"
+port=123
+
+width=900
+height=300
+blue1=7070aa
+blue2=0000bb
+red1=aa7070
+red2=bb0000
+white=ffffff
+
+for command; do
+  case "$command" in
+  ntp-firewall)
+    # Count packets for collectd iptables plugin
+    iptables -L -v -n | grep -q ntp_ipv4_in ||
+      iptables -I INPUT -p udp -m udp --dport $port -m comment --comment ntp_ipv4_in -j ACCEPT
+    iptables -L -v -n | grep -q ntp_ipv4_out ||
+      iptables -I OUTPUT -p udp -m udp --sport $port -m comment --comment ntp_ipv4_out -j ACCEPT
+    ip6tables -L -v -n | grep -q ntp_ipv6_in ||
+      ip6tables -I INPUT -p udp -m udp --dport $port -m comment --comment ntp_ipv6_in -j ACCEPT
+    ip6tables -L -v -n | grep -q ntp_ipv6_out ||
+      ip6tables -I OUTPUT -p udp -m udp --sport $port -m comment --comment ntp_ipv6_out -j ACCEPT
+
+    # Don't track connections for NTP packets
+    iptables -t raw -L -v -n | grep -q ntp_nt_ipv4_pre ||
+      iptables -t raw -I PREROUTING -p udp -m udp --dport $port -m comment --comment ntp_nt_ipv4_pre -j CT --notrack
+    iptables -t raw -L -v -n | grep -q ntp_nt_ipv4_out ||
+      iptables -t raw -I OUTPUT -p udp -m udp --sport $port -m comment --comment ntp_nt_ipv4_out -j CT --notrack
+    ip6tables -t raw -L -v -n | grep -q ntp_nt_ipv6_pre ||
+      ip6tables -t raw -I PREROUTING -p udp -m udp --dport $port -m comment --comment ntp_nt_ipv6_pre -j CT --notrack
+    ip6tables -t raw -L -v -n | grep -q ntp_nt_ipv6_out ||
+      ip6tables -t raw -I OUTPUT -p udp -m udp --sport $port -m comment --comment ntp_nt_ipv6_out -j CT --notrack
+    ;;
+
+  ntp-stats)
+    [ -d $rrd_dir ] || continue
+    mkdir -p $www_dir || continue
+    pushd $www_dir || continue
+
+    tracking_offset=$rrd_dir/chrony/time_offset-chrony.rrd
+    tracking_offset_rms=$rrd_dir/chrony/time_offset_rms-chrony.rrd
+    tracking_freq=$rrd_dir/chrony/frequency_error-chrony.rrd
+    tracking_skew=$rrd_dir/chrony/clock_skew_ppm-chrony.rrd
+
+    ln -sf day.html index.html
+
+    for name_interval in "hour 3600" "day 86400" "week 604800" "month 2592000" "year 31536000"; do
+      name=${name_interval% *}
+      interval=${name_interval#* }
+      html=$name.html
+
+      echo "<html><body>" > $html
+      echo "<h1>NTP stats</h1>" >> $html
+      echo "<h2>Server: $host</h2>" >> $html
+
+      echo "<h2>Interval:" >> $html
+      for i in hour day week month year; do
+        if [ "$i" == "$name" ]; then
+          echo "$i" >> $html
+        else
+          echo "<a href=\"$i.html\">$i</a>" >> $html
+        fi
+      done
+      echo "</h2>" >> $html
+
+      echo "<img src=\"tracking-offset-rms-$name.png\">" >> $html
+
+      rrdtool graph tracking-offset-rms-$name.png \
+        -u 1e-3 -l 1e-6 -o \
+        -t "chrony tracking offset RMS" \
+        -w $width -h $height \
+        -s "now-$interval" -e now \
+        DEF:min=$tracking_offset_rms:value:MIN \
+        DEF:avg=$tracking_offset_rms:value:AVERAGE \
+        DEF:max=$tracking_offset_rms:value:MAX \
+        AREA:max#$blue1 \
+        AREA:min#$white \
+        LINE2:avg#$blue2:"Offset RMS   " \
+        GPRINT:min:MIN:"Min\:%7.1lf %ss" \
+        GPRINT:avg:AVERAGE:"Avg\:%7.1lf %ss" \
+        GPRINT:max:MAX:"Max\:%7.1lf %ss\l"
+
+      echo "<img src=\"tracking-offset-$name.png\">" >> $html
+
+      rrdtool graph tracking-offset-$name.png \
+        -t "chrony tracking offset" \
+        -w $width -h $height \
+        -s "now-$interval" -e now \
+        DEF:min=$tracking_offset:value:MIN \
+        DEF:avg=$tracking_offset:value:AVERAGE \
+        DEF:max=$tracking_offset:value:MAX \
+        AREA:max#$blue1 \
+        AREA:min#$blue1 \
+        LINE2:avg#$blue2:"Offset      " \
+        GPRINT:min:MIN:"Min\:%7.1lf %ss" \
+        GPRINT:avg:AVERAGE:"Avg\:%7.1lf %ss" \
+        GPRINT:max:MAX:"Max\:%7.1lf %ss\l"
+
+      echo "<img src=\"tracking-freq-$name.png\">" >> $html
+
+      rrdtool graph tracking-freq-$name.png \
+        -A \
+        -t "chrony tracking freq" \
+        -w $width -h $height \
+        -s "now-$interval" -e now \
+        DEF:min=$tracking_freq:value:MIN \
+        DEF:avg=$tracking_freq:value:AVERAGE \
+        DEF:max=$tracking_freq:value:MAX \
+        AREA:min#$red1: \
+        AREA:max#$white: \
+        LINE2:avg#$red2:"Freq      " \
+        GPRINT:min:MIN:"Min\:%7.3lf ppm" \
+        GPRINT:avg:AVERAGE:"Avg\:%7.3lf ppm" \
+        GPRINT:max:MAX:"Max\:%7.3lf ppm\l"
+
+      echo "<img src=\"tracking-skew-$name.png\">" >> $html
+
+      rrdtool graph tracking-skew-$name.png \
+        -u 10 -l 1e-4 -o \
+        -t "chrony tracking skew" \
+        -w $width -h $height \
+        -s "now-$interval" -e now \
+        DEF:min=$tracking_skew:value:MIN \
+        DEF:avg=$tracking_skew:value:AVERAGE \
+        DEF:max=$tracking_skew:value:MAX \
+        AREA:max#$red1 \
+        AREA:min#$white \
+        LINE2:avg#$blue2:"Skew      " \
+        GPRINT:min:MIN:"Min\:%7.3lf ppm" \
+        GPRINT:avg:AVERAGE:"Avg\:%7.3lf ppm" \
+        GPRINT:max:MAX:"Max\:%7.3lf ppm\l"
+
+      for ipv in 4 6; do
+        in=$rrd_dir/ip${ipv#4}tables-filter-INPUT/ipt_packets-ntp_ipv${ipv}_in.rrd
+        out=$rrd_dir/ip${ipv#4}tables-filter-OUTPUT/ipt_packets-ntp_ipv${ipv}_out.rrd
+
+        echo "<img src=\"traffic-ipv${ipv}-$name.png\">" >> $html
+
+        rrdtool graph traffic-ipv${ipv}-$name.png \
+          -o -u 1e5 -l 1e0 -r \
+          -t "IPv${ipv} NTP server traffic" \
+          -w $width -h $height \
+          -s "now-$interval" -e now \
+          DEF:inmin=$in:value:MIN \
+          DEF:inavg=$in:value:AVERAGE \
+          DEF:inmax=$in:value:MAX \
+          DEF:outmin=$out:value:MIN \
+          DEF:outavg=$out:value:AVERAGE \
+          DEF:outmax=$out:value:MAX \
+          CDEF:dropavg=inavg,outavg,- \
+          CDEF:dropmin=inmin,outmin,- \
+          CDEF:dropmax=inmax,outmax,- \
+          CDEF:ndropavg=outavg,inavg,- \
+          CDEF:ndropmin=outmax,inmax,- \
+          CDEF:ndropmax=outmin,inmin,- \
+          AREA:inmax#$blue1 \
+          AREA:inmin#$white \
+          AREA:dropmax#$red1 \
+          AREA:dropmin#$white \
+          LINE2:inavg#$blue2:"Received    " \
+          GPRINT:inmin:MIN:"Min\:%7.1lf pkt/s" \
+          GPRINT:inavg:AVERAGE:"Avg\:%7.1lf pkt/s" \
+          GPRINT:inmax:MAX:"Max\:%7.1lf pkt/s\l" \
+          LINE2:dropavg#$red2:"Dropped     " \
+          GPRINT:dropmin:MIN:"Min\:%7.1lf pkt/s" \
+          GPRINT:dropavg:AVERAGE:"Avg\:%7.1lf pkt/s" \
+          GPRINT:dropmax:MAX:"Max\:%7.1lf pkt/s\l"
+      done
+
+      for ipv in 4 6; do
+        in=$rrd_dir/ip${ipv#4}tables-filter-INPUT/ipt_packets-ntp_ipv${ipv}_in.rrd
+        out=$rrd_dir/ip${ipv#4}tables-filter-OUTPUT/ipt_packets-ntp_ipv${ipv}_out.rrd
+
+        echo "<img src=\"trafficavg-ipv${ipv}-$name.png\">" >> $html
+
+        rrdtool graph trafficavg-ipv${ipv}-$name.png \
+          -t "IPv${ipv} NTP server traffic (average only)" \
+          -w $width -h $height \
+          -s "now-$interval" -e now -S 2232 \
+          DEF:inavg=$in:value:AVERAGE \
+          DEF:outavg=$out:value:AVERAGE \
+          CDEF:dropavg=inavg,outavg,- \
+          CDEF:ndropavg=outavg,inavg,- \
+          LINE2:inavg#$blue2:"Received    " \
+          GPRINT:inavg:AVERAGE:"Avg\:%7.1lf pkt/s\l" \
+          LINE2:dropavg#$red2:"Dropped     " \
+          GPRINT:dropavg:AVERAGE:"Avg\:%7.1lf pkt/s\l"
+      done
+
+      for if_octets in $rrd_dir/interface-*/if_octets.rrd; do
+        iface=${if_octets%/*}
+        iface=${iface#*interface-}
+
+        echo "<img src=\"traffic-all-$iface-$name.png\">" >> $html
+
+        rrdtool graph traffic-all-$iface-$name.png \
+          -o -u 1e8 -l 1e3 -r \
+          -t "All network traffic on $iface" \
+          -w $width -h $height \
+          -s "now-$interval" -e now \
+          DEF:inmin=$if_octets:rx:MIN \
+          DEF:inavg=$if_octets:rx:AVERAGE \
+          DEF:inmax=$if_octets:rx:MAX \
+          DEF:outmin=$if_octets:tx:MIN \
+          DEF:outavg=$if_octets:tx:AVERAGE \
+          DEF:outmax=$if_octets:tx:MAX \
+          AREA:inmax#$blue1 \
+          AREA:inmin#$white \
+          AREA:outmax#$red1 \
+          AREA:outmin#$white \
+          LINE2:inavg#$blue2:"Received    " \
+          GPRINT:inmin:MIN:"Min\:%7.1lf%SB/s" \
+          GPRINT:inavg:AVERAGE:"Avg\:%7.1lf%SB/s" \
+          GPRINT:inmax:MAX:"Max\:%7.1lf%SB/s\l" \
+          LINE2:outavg#$red2:"Transmitted " \
+          GPRINT:outmin:MIN:"Min\:%7.1lf%SB/s" \
+          GPRINT:outavg:AVERAGE:"Avg\:%7.1lf%SB/s" \
+          GPRINT:outmax:MAX:"Max\:%7.1lf%SB/s\l"
+      done
+
+      echo "</body>" >> $html
+    done
+    popd
+    ;;
+  *)
+    echo "Unknown command"
+    exit 1
+  esac
+done
