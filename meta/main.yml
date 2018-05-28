@@ -1,7 +1,7 @@
 galaxy_info:
   author: Miroslav Lichvar <mlichvar@redhat.com>
   description: Configure chrony as an NTP server and collect statistics
-  galaxy_tags: [ 'system', 'beta' ]
+  galaxy_tags: [ 'system', 'chrony', 'ntp' ]
   company: Red Hat, Inc.
   license: MIT
   min_ansible_version: 2.2
