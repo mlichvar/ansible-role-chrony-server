@@ -61,9 +61,9 @@
   when: ntp_stats
 
 - name: Disable ntp-firewall service
-  service: name=ntp-firewall state=started enabled=yes
+  service: name=ntp-firewall state=stopped enabled=no
   when: not ntp_firewall
 
 - name: Enable ntp-firewall service
-  service: name=ntp-firewall state=stopped enabled=no
+  service: name=ntp-firewall state=started enabled=yes
   when: ntp_firewall
