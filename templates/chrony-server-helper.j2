@@ -220,6 +220,8 @@ for command; do
         iface=${if_octets%/*}
         iface=${iface#*interface-}
 
+        ip a show $iface up | grep -q inet || continue
+
         echo "<img src=\"traffic-all-$iface-$name.png\">" >> $html
 
         rrdtool graph traffic-all-$iface-$name.png \
