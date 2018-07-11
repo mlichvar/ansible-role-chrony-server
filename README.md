@@ -19,6 +19,9 @@ follows:
 # Configuration added to a chrony.conf template
 chrony_configuration:
 
+# Command-line options for chronyd
+chronyd_options: -r
+
 # Flag enabling use of NTP servers obtained from DHCP
 dhcp_ntp_servers: no
 

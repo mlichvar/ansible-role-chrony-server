@@ -1,5 +1,6 @@
 ---
 chrony_configuration: ""
+chronyd_options: "-r"
 dhcp_ntp_servers: no
 ntp_firewall: yes
 ntp_stats: no
