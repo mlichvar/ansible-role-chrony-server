@@ -55,7 +55,7 @@ public servers from the http://www.pool.ntp.org project.
     chrony_configuration: |
       pool 2.pool.ntp.org iburst
   roles:
-    - chrony-server
+    - mlichvar.chrony-server
 ```
 
 The second example uses a different chrony configuration and enables the
@@ -75,7 +75,7 @@ pages. (A web server role might be preferred for that.)
       leapsectz right/UTC
     ntp_stats: yes
   roles:
-    - chrony-server
+    - mlichvar.chrony-server
 
   tasks:
     - name: Install httpd
