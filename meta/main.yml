@@ -1,4 +1,5 @@
 galaxy_info:
+  role_name: chrony_server
   author: Miroslav Lichvar <mlichvar@redhat.com>
   description: Configure chrony as an NTP server and collect statistics
   galaxy_tags: [ 'system', 'chrony', 'ntp' ]
