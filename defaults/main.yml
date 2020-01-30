@@ -6,4 +6,5 @@ ntp_firewall: yes
 ntp_stats: no
 ntp_stats_hostname: ""
 ntp_stats_www_dir: /var/www/html/ntp-stats
+ntp_nts_stats: no
 helper_path: /usr/local/sbin/chrony-server-helper

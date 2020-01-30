@@ -33,4 +33,10 @@ LoadPlugin syslog
   Chain "filter" "OUTPUT" "ntp_ipv4_out"
   Chain6 "filter" "INPUT" "ntp_ipv6_in"
   Chain6 "filter" "OUTPUT" "ntp_ipv6_out"
+{% if ntp_nts_stats %}
+  Chain "filter" "INPUT" "ntp_nts_ipv4_in"
+  Chain "filter" "OUTPUT" "ntp_nts_ipv4_out"
+  Chain6 "filter" "INPUT" "ntp_nts_ipv6_in"
+  Chain6 "filter" "OUTPUT" "ntp_nts_ipv6_out"
+{% endif %}
 </Plugin>

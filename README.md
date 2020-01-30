@@ -39,6 +39,9 @@ ntp_stats_hostname: {{ ansible_hostname }}
 # Directory for generated web pages
 ntp_stats_www_dir: /var/www/html/ntp-stats
 
+# Flag enabling monitoring of NTS traffic
+ntp_nts_stats: no
+
 # Location of a helper script
 helper_path: /usr/local/sbin/chrony-server-helper
 ```

@@ -40,7 +40,7 @@ white=ffffff
 for command; do
   case "$command" in
   ntp-firewall)
-    # Count packets for collectd iptables plugin
+    # Accept and count NTP packets for collectd
     iptables -L -v -n | grep -q ntp_ipv4_in ||
       iptables -I INPUT -p udp -m udp --dport $port -m comment --comment ntp_ipv4_in -j ACCEPT
     iptables -L -v -n | grep -q ntp_ipv4_out ||
@@ -49,6 +49,18 @@ for command; do
       ip6tables -I INPUT -p udp -m udp --dport $port -m comment --comment ntp_ipv6_in -j ACCEPT
     ip6tables -L -v -n | grep -q ntp_ipv6_out ||
       ip6tables -I OUTPUT -p udp -m udp --sport $port -m comment --comment ntp_ipv6_out -j ACCEPT
+
+{% if ntp_nts_stats %}
+    # Count NTP-NTS packets for collectd
+    iptables -L -v -n | grep -q ntp_nts_ipv4_in ||
+      iptables -I INPUT 1 -p udp -m udp --dport $port -m comment --comment ntp_nts_ipv4_in -m length --length 256:256
+    iptables -L -v -n | grep -q ntp_nts_ipv4_out ||
+      iptables -I OUTPUT 1 -p udp -m udp --sport $port -m comment --comment ntp_nts_ipv4_out -m length --length 256:256
+    ip6tables -L -v -n | grep -q ntp_nts_ipv6_in ||
+      ip6tables -I INPUT -p udp -m udp --dport $port -m comment --comment ntp_nts_ipv6_in -m length --length 276:276
+    ip6tables -L -v -n | grep -q ntp_nts_ipv6_out ||
+      ip6tables -I OUTPUT -p udp -m udp --sport $port -m comment --comment ntp_nts_ipv6_out -m length --length 276:276
+{% endif %}
 
     # Don't track connections for NTP packets
     iptables -t raw -L -v -n | grep -q ntp_nt_ipv4_pre ||
@@ -206,6 +218,26 @@ for command; do
           -t "IPv${ipv} NTP server traffic (average only)" \
           -w $width -h $height \
           -s "now-$interval" -e now -S 2232 \
+          DEF:inavg=$in:value:AVERAGE \
+          DEF:outavg=$out:value:AVERAGE \
+          CDEF:dropavg=inavg,outavg,- \
+          CDEF:ndropavg=outavg,inavg,- \
+          LINE2:inavg#$blue2:"Received    " \
+          GPRINT:inavg:AVERAGE:"Avg\:%7.1lf pkt/s\l" \
+          LINE2:dropavg#$red2:"Dropped     " \
+          GPRINT:dropavg:AVERAGE:"Avg\:%7.1lf pkt/s\l"
+      done
+
+      for ipv in 4 6; do
+        in=$rrd_dir/ip${ipv#4}tables-filter-INPUT/ipt_packets-ntp_nts_ipv${ipv}_in.rrd
+        out=$rrd_dir/ip${ipv#4}tables-filter-OUTPUT/ipt_packets-ntp_nts_ipv${ipv}_out.rrd
+
+        echo "<img src=\"trafficavg-nts-ipv${ipv}-$name.png\">" >> $html
+
+        rrdtool graph trafficavg-nts-ipv${ipv}-$name.png \
+          -t "IPv${ipv} NTP-NTS server traffic (average only)" \
+          -w $width -h $height \
+          -s "now-$interval" -e now \
           DEF:inavg=$in:value:AVERAGE \
           DEF:outavg=$out:value:AVERAGE \
           CDEF:dropavg=inavg,outavg,- \
