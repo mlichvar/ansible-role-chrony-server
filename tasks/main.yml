@@ -17,7 +17,7 @@
 
 - name: Set hostname for statistics
   set_fact: ntp_stats_hostname={{ ansible_hostname }}
-  when: ntp_stats_hostname == ""
+  when: ntp_stats_hostname | length == 0
 
 - name: Install chrony.conf file
   template: src=chrony.conf.j2 dest=/etc/chrony.conf backup=yes mode=0644
