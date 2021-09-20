@@ -3,6 +3,7 @@
 [Unit]
 Description=Configure firewall for NTP server
 After=network-online.target iptables.service ip6tables.service firewalld.service
+PartOf=iptables.service ip6tables.service
 Before=chronyd.service
 
 [Service]
