@@ -26,6 +26,8 @@ LoadPlugin syslog
 <Plugin interface>
         IgnoreSelected true
         Interface "lo"
+        Interface "sit0"
+        Interface "/^veth/"
 </Plugin>
 
 <Plugin iptables>
